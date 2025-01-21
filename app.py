@@ -1,6 +1,6 @@
 from flask import Flask, render_template, Response
 import cv2
-import dlib
+import face_recognition
 import numpy as np
 import os
 import pandas as pd
@@ -14,11 +14,6 @@ from googleapiclient.http import MediaFileUpload
 from google.auth.transport.requests import Request
 
 app = Flask(__name__)
-
-# تهيئة Dlib
-detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor('https://drive.google.com/file/d/123WUQOsKOZ4ly8i6MfoQiK2W9h2Yy21W/view?usp=sharing')
-face_reco_model = dlib.face_recognition_model_v1("dlib_face_recognition_resnet_model_v1.dat")
 
 # تهيئة Airtable
 AIRTABLE_BASE_ID = "appIxTUTsazkHkVid"
@@ -76,7 +71,7 @@ def upload_to_drive(file_path, folder_id):
 
 class FaceRecognizer:
     def __init__(self):
-        self.face_features_known_list = []
+        self.face_encodings_known_list = []
         self.face_name_known_list = []
         self.load_known_faces()
 
@@ -84,47 +79,37 @@ class FaceRecognizer:
         if os.path.exists("features_airtable.csv"):
             csv_rd = pd.read_csv("features_airtable.csv", header=None)
             for i in range(csv_rd.shape[0]):
-                features_someone_arr = []
                 self.face_name_known_list.append(csv_rd.iloc[i][0])
-                for j in range(1, 129):
-                    feature_value = csv_rd.iloc[i][j]
-                    try:
-                        if feature_value == '':
-                            features_someone_arr.append(0.0)
-                        else:
-                            features_someone_arr.append(float(feature_value))
-                    except ValueError:
-                        features_someone_arr.append(0.0)
-                self.face_features_known_list.append(features_someone_arr)
-            print("Known faces loaded:", len(self.face_features_known_list))
+                self.face_encodings_known_list.append([float(x) for x in csv_rd.iloc[i][1:129]])
+            print("Known faces loaded:", len(self.face_encodings_known_list))
         else:
             print("'features_airtable.csv' not found!")
 
     def recognize_face(self, frame, folder_id):
-        faces = detector(frame, 0)
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(rgb_frame)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+
         results = []
-        for d in faces:
-            shape = predictor(frame, d)
-            features = face_reco_model.compute_face_descriptor(frame, shape)
+        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
             name = "unknown"
             color = (0, 0, 255)  # Red for unknown
 
-            for i, known_features in enumerate(self.face_features_known_list):
-                e_distance = np.linalg.norm(np.array(features) - np.array(known_features))
-                if e_distance < 0.4:
-                    name = self.face_name_known_list[i]
-                    color = (0, 255, 0)  # Green for known
-                    self.send_attendance_to_airtable(name)
-                    break
+            matches = face_recognition.compare_faces(self.face_encodings_known_list, face_encoding)
+            if True in matches:
+                first_match_index = matches.index(True)
+                name = self.face_name_known_list[first_match_index]
+                color = (0, 255, 0)  # Green for known
+                self.send_attendance_to_airtable(name)
 
             results.append({
                 "name": name,
                 "color": color,
-                "box": [d.left(), d.top(), d.right(), d.bottom()]
+                "box": [left, top, right, bottom]
             })
 
             if name == "unknown":
-                self.send_unknown_to_airtable_with_image(frame, d, folder_id)
+                self.send_unknown_to_airtable_with_image(frame, (top, right, bottom, left), folder_id)
 
         return results
 
@@ -148,7 +133,7 @@ class FaceRecognizer:
         else:
             print(f"Error: {response.status_code}, Could not add attendance for {name}")
 
-    def send_unknown_to_airtable_with_image(self, img_rd, d, folder_id):
+    def send_unknown_to_airtable_with_image(self, img_rd, face_location, folder_id):
         current_date = datetime.datetime.now().strftime('%Y-%m-%d')
         current_time = datetime.datetime.now().strftime('%H-%M-%S')
         file_name = f"unknown_{current_date}_{current_time}.jpg"
@@ -157,7 +142,8 @@ class FaceRecognizer:
         temp_image_path = os.path.join("temp_unknown_faces", file_name)
         if not os.path.exists("temp_unknown_faces"):
             os.makedirs("temp_unknown_faces")
-        cropped_face = img_rd[d.top():d.bottom(), d.left():d.right()]
+        top, right, bottom, left = face_location
+        cropped_face = img_rd[top:bottom, left:right]
         cv2.imwrite(temp_image_path, cropped_face)
 
         # تحميل الصورة إلى Google Drive
