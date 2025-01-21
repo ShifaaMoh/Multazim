@@ -200,6 +200,9 @@ def generate_frames():
         if not success:
             break
         else:
+            # تغيير حجم الإطار إلى 640x480 لتقليل استخدام الذاكرة
+            frame = cv2.resize(frame, (640, 480))
+
             # الكشف عن الوجوه
             results = face_recognizer.recognize_face(frame, folder_id)
             for result in results:
