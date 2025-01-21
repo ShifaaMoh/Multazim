@@ -18,7 +18,7 @@ app = Flask(__name__)
 # تهيئة Dlib
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor('C:/Users/sheee/dlib/data_dlib/shape_predictor_68_face_landmarks.dat')
-face_reco_model = dlib.face_recognition_model_v1("C:/Users/sheee/dlib/data_dlib/dlib_face_recognition_resnet_model_v1.dat")
+face_reco_model = dlib.face_recognition_model_v1("dlib_face_recognition_resnet_model_v1.dat")
 
 # تهيئة Airtable
 AIRTABLE_BASE_ID = "appIxTUTsazkHkVid"
@@ -81,8 +81,8 @@ class FaceRecognizer:
         self.load_known_faces()
 
     def load_known_faces(self):
-        if os.path.exists(r"C:\Users\sheee\Downloads\newVersion\features_airtable.csv"):
-            csv_rd = pd.read_csv(r"C:\Users\sheee\Downloads\newVersion\features_airtable.csv", header=None)
+        if os.path.exists("features_airtable.csv"):
+            csv_rd = pd.read_csv("features_airtable.csv", header=None)
             for i in range(csv_rd.shape[0]):
                 features_someone_arr = []
                 self.face_name_known_list.append(csv_rd.iloc[i][0])
