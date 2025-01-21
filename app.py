@@ -17,7 +17,7 @@ app = Flask(__name__)
 
 # تهيئة Dlib
 detector = dlib.get_frontal_face_detector()
-predictor = dlib.shape_predictor('C:/Users/sheee/dlib/data_dlib/shape_predictor_68_face_landmarks.dat')
+predictor = dlib.shape_predictor('https://drive.google.com/file/d/123WUQOsKOZ4ly8i6MfoQiK2W9h2Yy21W/view?usp=sharing')
 face_reco_model = dlib.face_recognition_model_v1("dlib_face_recognition_resnet_model_v1.dat")
 
 # تهيئة Airtable
